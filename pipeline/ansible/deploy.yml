@@ -1,0 +1,47 @@
+- name: Local Blue-Green Deployment
+  hosts: localhost
+  vars:
+    project_directory: "{{ lookup('env', 'PROJECT_DIRECTORY') }}"
+    skip_build: "{{ lookup('env', 'SKIP_BUILD') | default('false') | bool }}"
+    deployment_color: "{{ lookup('env', 'DEPLOYMENT_COLOR') }}"
+    deployment_directory: "{{ lookup('env', 'DEPLOYMENT_DIRECTORY') }}"
+
+  tasks:
+    - name: Locate packaged JAR
+      find:
+        paths: "{{ project_directory }}/target"
+        patterns: "*.jar"
+        recurse: no
+      register: found_jars
+      when: not skip_build
+
+    - name: Stop execution if JAR is missing
+      fail:
+        msg: "No application archive was found inside the target directory."
+      when: (not skip_build) and found_jars.matched == 0
+
+    - name: Select newest build artifact
+      set_fact:
+        source_jar: "{{ (found_jars.files | sort(attribute='mtime'))[-1].path }}"
+      when: not skip_build
+
+    - name: Create deployment destination
+      file:
+        path: "{{ deployment_directory }}/deployment-{{ deployment_color }}"
+        state: directory
+        mode: '0755'
+
+    - name: Transfer artifact to deployment destination
+      copy:
+        src: "{{ source_jar }}"
+        dest: "{{ deployment_directory }}/deployment-{{ deployment_color }}/midterm.jar"
+        mode: '0755'
+      when: not skip_build
+
+    - name: Shut down running application if present
+      shell: ps aux | grep -i midterm.jar | grep -v grep | awk {'print $2'} |xargs kill
+      ignore_errors: yes
+
+    - name: Start updated application
+      shell: |
+        cd {{ deployment_directory }}/deployment-{{ deployment_color }} && nohup java -jar midterm.jar > output.log 2>&1 &
