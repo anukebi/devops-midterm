@@ -1,99 +1,399 @@
-# Midterm Project
+# DevOps Final Project
 
+A Spring Boot application with full CI/CD automation, blue-green deployment, observability stack, security scanning, and
+production-readiness improvements built throughout the semester.
 
-## 1. Description
-This is a simple Java project built with Spring Boot exposing a few HTTP endpoints to set up and demonstrate a basic CI/CD pipeline.
-It contains a single controller with GET and POST endpoints accepting and returning strings, plus a health endpoint used by the deployment pipeline, and a test class to validate the controller.
+This project extends the previously submitted midterm and CI/CD assignments. All earlier functionality remains
+operational.
 
+## Requirements Compliance
 
-## 2. Tools
-- Java 21
-- Spring Boot
-- Maven (via `mvnw` wrapper)
-- Checkstyle
-- GitHub Actions
-- Terraform
-- Ansible
-- WSL2
+The table below maps each final-project requirement from the assignment to its implementation in this repository.
 
+| Requirement                  | Status | Implementation                                                                              |
+|------------------------------|--------|---------------------------------------------------------------------------------------------|
+| **Branching Strategy**       | Done   | `main` (production) and `dev` (integration) - see [Branching Strategy](#branching-strategy) |
+| **Continuous Integration**   | Done   | `.github/workflows/ci.yml`, `.github/workflows/checkstyle.yml`                              |
+| **Continuous Deployment**    | Done   | `pipeline/deploy.sh` with Terraform + Ansible blue-green deployment                         |
+| **Infrastructure as Code**   | Done   | `pipeline/terraform/main.tf`, `pipeline/ansible/deploy.yml`                                 |
+| **Docker / Docker Compose**  | Done   | `Dockerfile`, `docker-compose.yml`                                                          |
+| **Monitoring**               | Done   | Prometheus + Grafana dashboards in `monitoring/`                                            |
+| **Logging**                  | Done   | JSON logging via Log4j2, ELK stack in Docker Compose                                        |
+| **Observability**            | Done   | Metrics, logs, dashboards, and architecture diagram                                         |
+| **Alerting**                 | Done   | Prometheus rules + Grafana provisioned alerts                                               |
+| **Health Checks**            | Done   | `/api/health`, `pipeline/healthcheck.sh`, Docker healthcheck                                |
+| **Environment Automation**   | Done   | `scripts/setup.sh` - single-command setup                                                   |
+| **Security Automation**      | Done   | Trivy, Gitleaks, Hadolint, tfsec, Dependency Review in CI                                    |
+| **Reliability Improvements** | Done   | Rollback, SLOs, incident response, alerting                                                 |
+| **Automation Improvements**  | Done   | Multi-stage CI, env validation, post-deploy checks                                          |
+| **Documentation**            | Done   | This README, `docs/SLO.md`, `docs/INCIDENT_RESPONSE.md`                                     |
+| **Local Execution**          | Done   | No paid cloud services required - runs locally via Docker Compose and WSL/Linux scripts     |
 
-## 3. IaC Configuration
-Configuration files for the CI/CD pipeline are located in the `.github/workflows` and `pipeline` folders. In order to run the pipeline,
-certain environment variables need to be set. WSL2 should have your Windows drive mounted by default; if not, please mount it beforehand
-so you can access your project files via the `/mnt/c/...` path. Additionally, an environment file should be created at `~/devops/env`
-inside the WSL2 environment with the following content:
+## Branching Strategy
+
+| Branch | Purpose                         | CI Behavior                                                             |
+|--------|---------------------------------|-------------------------------------------------------------------------|
+| `dev`  | Feature integration and testing | Runs tests and security scans on push/PR                                |
+| `main` | Stable production-ready code    | Runs full pipeline: test -> security -> build -> post-deploy validation |
+
+Workflow:
+
+1. Create a feature branch from `dev`
+2. Open a pull request into `dev` - triggers tests and Checkstyle annotations
+3. Merge to `dev` for integration testing
+4. Open a pull request from `dev` to `main` - full validation before release
+5. Merge to `main` - triggers JAR build, Docker image scan, and artifact upload
+
+## Local Execution
+
+All functionality runs locally without paid cloud services or commercial subscriptions:
+
+- **Application + observability:** `bash scripts/setup.sh` or `docker compose up -d --build`
+- **CI checks locally:** `./mvnw test`, `mvn checkstyle:check`
+- **Blue-green deployment:** `bash pipeline/deploy.sh` (requires Terraform, Ansible, WSL2 or Linux)
+- **Security scans:** documented in [Security Implementation](#security-implementation)
+
+Only free and publicly available tools are used (GitHub Actions free tier, open-source scanners, Docker images).
+
+## Project Architecture
+
+```mermaid
+flowchart TB
+    subgraph dev["Developer Workflow"]
+        Git[Git Repository]
+        GHA[GitHub Actions CI/CD]
+    end
+
+    subgraph ci["Continuous Integration"]
+        Test[Maven Tests + Checkstyle]
+        Sec[Security Scans]
+        Build[JAR + Docker Build]
+        Trivy[Trivy Image Scan]
+    end
+
+    subgraph cd["Continuous Deployment"]
+        TF[Terraform - Provision Directories]
+        Ansible[Ansible - Blue/Green Deploy]
+        HC[Health Check + Rollback]
+    end
+
+    subgraph obs["Observability Stack - Docker Compose"]
+        App[Spring Boot App]
+        Prom[Prometheus]
+        Graf[Grafana]
+        ES[Elasticsearch]
+        LS[Logstash]
+        KB[Kibana]
+    end
+
+    Git --> GHA
+    GHA --> Test --> Sec --> Build --> Trivy
+    Build --> TF --> Ansible --> HC
+    App --> Prom --> Graf
+    App --> LS --> ES --> KB
+```
+
+## Tools
+
+- Java 21, Spring Boot, Maven
+- Git, GitHub Actions
+- Terraform, Ansible (blue-green deployment)
+- Docker, Docker Compose
+- Prometheus, Grafana, Elasticsearch, Logstash, Kibana
+- Security: Trivy, Gitleaks, Hadolint, tfsec, GitHub Dependency Review
+
+## Quick Start - Single Command Setup
+
+Start the full local environment (application + observability stack):
+
 ```bash
-export PROJECT_DIRECTORY=/mnt/c/PATH_TO_PROJECT # replace with your project path to access it from WSL2
+bash scripts/setup.sh
+```
+
+This script:
+
+1. Creates `~/devops/env` from the template if it does not exist (for WSL/Linux blue-green deployment)
+2. Builds and starts all services via Docker Compose
+
+Other options:
+
+```bash
+bash scripts/setup.sh --docker-only   # Start only Docker Compose stack
+bash scripts/setup.sh --deploy-env    # Create only the deployment env file
+bash scripts/validate-environment.sh  # Verify all required files and tools
+```
+
+### Service URLs (Docker Compose)
+
+| Service       | URL                   | Login         |
+|---------------|-----------------------|---------------|
+| Application   | http://localhost:8080 | -             |
+| Prometheus    | http://localhost:9090 | -             |
+| Grafana       | http://localhost:3000 | admin / admin |
+| Kibana        | http://localhost:5601 | -             |
+| Node Exporter | http://localhost:9100 | -             |
+
+### Local Development (without Docker)
+
+```bash
+./mvnw test
+./mvnw spring-boot:run
+```
+
+## Environment Setup
+
+### Docker / Observability Stack
+
+```bash
+docker compose up -d --build
+```
+
+On startup, the `kibana-setup` container creates the **Application Logs** data view. If Kibana Discover is empty, call
+`curl http://localhost:8080/api/hello/World` and refresh.
+
+### WSL2 Blue-Green Deployment
+
+For the Ansible/Terraform deployment pipeline, create the environment file (or run
+`bash scripts/setup.sh --deploy-env`):
+
+`~/devops/env`:
+
+```bash
+export PROJECT_DIRECTORY=/mnt/c/PATH_TO_PROJECT
 export DEPLOYMENT_DIRECTORY=/home/YOUR_USER/midterm/deployment
 export DEPLOYMENT_COLOR=blue
 export PORT=8080
 ```
 
-### 3.1. GitHub Actions
-Two workflows are defined under `.github/workflows`:
+Deploy:
 
-- **`ci.yml`** — triggered on every push and pull request to the `main` and `dev` branches. It sets up JDK 21 (Temurin) and runs `mvn test -Dcheckstyle.skip`. On pushes to `main`, a follow-up `build` job runs `mvn package -DskipTests -Dcheckstyle.skip` to produce the JAR artifact.
-- **`checkstyle.yml`** — triggered on every pull request. It uses `dbelyaev/action-checkstyle` to annotate the PR with any Checkstyle violations, using the repository's `GITHUB_TOKEN`.
-
-### 3.2. Terraform
-Terraform is used to provision the local deployment infrastructure inside WSL2. The `pipeline/terraform/main.tf` file declares a `deployment_directory` variable (passed in from the deploy script) and creates three folders via a `null_resource` with a `local-exec` provisioner:
-- `deployment-blue` and `deployment-green` — used for the blue-green deployment strategy.
-- `deployment-current` — used as a pointer (symlink target) to the most recently deployed, healthy application version.
-
-A `find ... tr -d "\r"` command is included to strip any Windows-style carriage returns from generated directory names.
-
-### 3.3. Ansible
-Ansible deploys the built application to the provisioned infrastructure. The `pipeline/ansible/deploy.yml` playbook runs against `localhost` (see `pipeline/ansible/hosts`) and:
-1. Locates the newest JAR under `target/` (skipped on rollback via `skip_build`).
-2. Ensures the `deployment-{{ color }}` destination directory exists.
-3. Copies the JAR to that directory as `midterm.jar`.
-4. Stops any currently running `midterm.jar` process.
-5. Starts the new application in the background with `nohup java -jar midterm.jar > output.log 2>&1 &`.
-
-
-## 4. CI/CD Pipeline
-
-### CI
-The CI pipeline is configured entirely in GitHub Actions (`ci.yml` and `checkstyle.yml`). It runs tests on every push and pull request to `main` and `dev`, runs Checkstyle on every pull request, and packages the JAR on pushes to `main`.
-
-### CD
-The CD pipeline is driven by `pipeline/deploy.sh`, executed from a WSL2 terminal:
 ```bash
 bash $PROJECT_DIRECTORY/pipeline/deploy.sh
 ```
-To toggle between deployment slots, change the `DEPLOYMENT_COLOR` variable in `~/devops/env` to `blue` or `green`.
 
-The script sources environment variables from `~/devops/env`, validates that `PROJECT_DIRECTORY`, `DEPLOYMENT_DIRECTORY`, `DEPLOYMENT_COLOR`, and `PORT` are set, and that the color is either `blue` or `green`. Then it executes the pipeline:
+Toggle between `blue` and `green` by changing `DEPLOYMENT_COLOR` in `~/devops/env`.
 
-1. Builds the project with `./mvnw clean package -DskipTests` to produce the JAR without re-running CI steps.
-2. Runs `terraform init`, `validate`, `plan`, and `apply -auto-approve` inside `pipeline/terraform`, passing `-var="deployment_directory=$DEPLOYMENT_DIRECTORY"` to provision the `deployment-blue`, `deployment-green`, and `deployment-current` folders.
-3. Runs `ansible-playbook pipeline/ansible/deploy.yml -i pipeline/ansible/hosts --extra-vars "color=$DEPLOYMENT_COLOR project_directory=$PROJECT_DIRECTORY"` to deploy the JAR into the selected color slot and start it.
-4. Executes `pipeline/healthcheck.sh`, which polls `http://localhost:$PORT/api/health` up to 5 times with a 5-second interval, logging results to `$DEPLOYMENT_DIRECTORY/health-check.log`. A 200 response marks the deployment healthy.
-5. On success, updates the `deployment-current` symlink to point at `deployment-$DEPLOYMENT_COLOR`.
-6. On failure, rolls back by redeploying the opposite color via Ansible (with `skip_build=true`), re-runs the health check, and restores the `deployment-current` symlink to the previous slot. If the rollback also fails, the script exits non-zero and manual intervention is required.
+## Deployment Workflow
 
-All health check and application logs can be found in the deployment directory. Application logs are written to `deployment-blue/output.log` and `deployment-green/output.log`, while health check results are appended to `health-check.log`.
+### CI (GitHub Actions)
 
-## 5. Screenshots
-### 1. GitHub Actions CI test passed after pushing to dev branch and creating PR
-![1.png](imgs/1.png)
+Workflow: `.github/workflows/ci.yml`
 
-### 2. GitHub Actions CI workflow steps
-![2.png](imgs/2.png)
+| Stage                      | Trigger                  | Actions                                                             |
+|----------------------------|--------------------------|---------------------------------------------------------------------|
+| **test**                   | Push/PR to `main`, `dev` | Maven unit tests                                                    |
+| **security**               | After tests pass         | Checkstyle, Gitleaks, tfsec, Hadolint, Trivy (dependencies), Dependency Review (PRs) |
+| **build**                  | Push to `main`           | Package JAR, build Docker image, Trivy scan                         |
+| **post-deploy-validation** | Push to `main`           | Validate Docker Compose, environment scripts, and project structure |
 
-### 3. Successful deployment
-![3.png](imgs/3.png)
+PR checkstyle annotations: `.github/workflows/checkstyle.yml`
 
-### 4. Failed deployment with rollback
-![4.png](imgs/4.png)
+After a successful blue-green deployment, `scripts/post-deploy-check.sh` verifies API endpoints automatically.
 
-### 5. Application running
-![5.1.png](imgs/5.1.png)
-![5.2.png](imgs/5.2.png)
-![5.3.png](imgs/5.3.png)
+### CD (Blue-Green)
 
-### 6. Healthcheck logs
-![6.png](imgs/6.png)
+`pipeline/deploy.sh` executes:
 
-### 7. Application logs
-![7.png](imgs/7.png)
+1. Maven build (`./mvnw clean package -DskipTests`)
+2. Terraform init/validate/plan/apply - provisions `deployment-blue`, `deployment-green`, `deployment-current`
+3. Ansible deploys JAR to the selected color slot
+4. Health check polls `http://localhost:$PORT/api/health` (5 retries, 5s interval)
+5. On success: updates `deployment-current` symlink
+6. On failure: automatic rollback to the opposite slot, re-health-check, restore symlink
+7. On success: `scripts/post-deploy-check.sh` verifies `/api/hello/World`, `/metrics`, `/actuator/prometheus`, and
+   `/api/error`
+
+## Security Implementation
+
+Security checks are integrated into the CI pipeline:
+
+| Tool                       | Target                | Purpose                                  |
+|----------------------------|-----------------------|------------------------------------------|
+| **Trivy (filesystem)**     | `pom.xml`, project    | Dependency vulnerability scanning        |
+| **Trivy (container)**      | Docker image          | Container image scanning (CRITICAL/HIGH) |
+| **Dependency Review**      | PR dependency changes | GitHub Advisory DB check on pull requests|
+| **Gitleaks**               | Git repository        | Secrets scanning                         |
+| **Hadolint**               | `Dockerfile`          | Dockerfile best-practice validation      |
+| **tfsec**                  | `pipeline/terraform/` | Infrastructure as Code security          |
+| **Checkstyle**             | Java source           | Code quality and style enforcement       |
+
+### Secrets Management
+
+Secrets are kept out of the repository:
+
+- Deployment configuration is stored in `~/devops/env` (generated from `scripts/env.template`)
+- `.env` files are listed in `.gitignore`
+- **Gitleaks** scans every CI run for accidentally committed credentials
+
+Run security scans locally:
+
+```bash
+mvn checkstyle:check
+docker run --rm -v "$PWD:/project" aquasec/trivy fs --severity CRITICAL,HIGH /project
+docker build -t midterm-app:local . && docker run --rm aquasec/trivy image midterm-app:local
+```
+
+## Monitoring, Logging, and Alerting
+
+### Metrics
+
+Custom counters in `AppMetrics`:
+
+- `app_requests_total` - incremented on API requests
+- `app_errors_total` - incremented on `/api/error`
+
+Exposed via:
+
+- `GET /metrics` - custom Prometheus text format
+- `GET /actuator/prometheus` - scraped by Prometheus for Grafana dashboards
+
+### Logging (ELK)
+
+JSON structured logging via Log4j2. In Docker mode, logs are shipped to Logstash (TCP port 5000), indexed in
+Elasticsearch, and viewed in Kibana.
+
+Kibana: filter with `level: ERROR` to see error lines.
+
+### Alerting
+
+Prometheus rule (`monitoring/prometheus/alerts.yml`):
+
+```yaml
+expr: increase(app_errors_total[1m]) > 5
+```
+
+Trigger test alert:
+
+```bash
+./scripts/trigger-alert.sh
+```
+
+Check alerts at:
+
+- Prometheus: http://localhost:9090/alerts
+- Grafana: http://localhost:3000/alerting/list
+
+### Grafana Dashboards
+
+Three provisioned dashboards under **Observability**:
+
+- **Application Services** - custom counters, HTTP/JVM metrics
+- **System Overview** - host CPU, memory, disk
+- **Infrastructure & Resources** - service status, network and disk I/O
+
+## Reliability Improvements
+
+- **Automated health monitoring** - `pipeline/healthcheck.sh` with retry logic
+- **Automatic rollback** - failed deployments restore the previous blue/green slot
+- **Service availability objectives** - documented in [docs/SLO.md](docs/SLO.md)
+- **Incident response procedures** - documented in [docs/INCIDENT_RESPONSE.md](docs/INCIDENT_RESPONSE.md)
+- **Alerting strategy** - Prometheus + Grafana rules for error rate spikes
+- **Post-deployment verification** - `scripts/post-deploy-check.sh` validates endpoints after deploy
+- **Environment validation script** - `scripts/validate-environment.sh`
+- **Docker container healthcheck** - app service health monitored in Docker Compose
+
+## API Endpoints
+
+| Method | Path                   | Description                                 |
+|--------|------------------------|---------------------------------------------|
+| GET    | `/api/health`          | Health check (used by deployment pipeline)  |
+| GET    | `/api/hello/{name}`    | Greeting with path variable                 |
+| POST   | `/api/hello/form`      | Greeting via form parameter                 |
+| GET    | `/api/error`           | Simulated error for observability testing   |
+| GET    | `/metrics`             | Prometheus-format custom metrics            |
+| GET    | `/actuator/prometheus` | Full Prometheus metrics (JVM, HTTP, custom) |
+
+## Screenshots
+
+### CI/CD Pipeline (Midterm)
+
+**GitHub Actions CI test passed**
+
+![CI passed](imgs/1.png)
+
+**GitHub Actions workflow steps**
+
+![CI workflow](imgs/2.png)
+
+**Successful deployment**
+
+![Deployment success](imgs/3.png)
+
+**Failed deployment with rollback**
+
+![Rollback](imgs/4.png)
+
+**Application running**
+
+![App 1](imgs/5.1.png)
+![App 2](imgs/5.2.png)
+![App 3](imgs/5.3.png)
+
+**Health check logs**
+
+![Health check](imgs/6.png)
+
+**Application logs**
+
+![App logs](imgs/7.png)
+
+### Observability Stack
+
+**Architecture diagram**
+
+![Observability architecture](docs/obs/observability-graph.png)
+
+**Kibana - filtered JSON logs**
+
+![Kibana logs](docs/obs/kibana-logs.png)
+
+**Grafana - application services**
+
+![Grafana application](docs/obs/grafana-application.png)
+
+**Grafana - infrastructure**
+
+![Grafana infrastructure](docs/obs/grafana-infrastructure.png)
+
+**Grafana - system overview**
+
+![Grafana system](docs/obs/grafana-system.png)
+
+**Grafana - active alert**
+
+![Grafana alerting](docs/obs/grafana-alerting.png)
+
+## Project Structure
+
+```
+.
+├── .github/workflows/       # CI/CD and security pipelines
+├── docs/                    # SLO, incident response, observability screenshots
+├── imgs/                    # CI/CD pipeline screenshots
+├── monitoring/              # Prometheus, Grafana, Logstash configuration
+├── pipeline/                # Terraform, Ansible, deploy and healthcheck scripts
+├── scripts/                 # setup.sh, validate-environment.sh, post-deploy-check.sh, trigger-alert.sh
+├── src/                     # Spring Boot application source
+├── Dockerfile
+├── docker-compose.yml
+└── pom.xml
+```
+
+## Analysis
+
+### Why is JSON-structured logging more efficient than plain text logs?
+
+With JSON, every field (`level`, `message`, `@timestamp`, etc.) has a fixed key, so Logstash and Kibana can index and
+filter without regex. Plain text requires a separate parser for each log format and breaks when messages contain special
+characters.
+
+### Prometheus vs Elasticsearch
+
+Prometheus is a time-series database for numeric metrics ("how many?", "how fast?"). Elasticsearch is a document store
+for full log records ("show me all ERROR logs from the last hour"). Prometheus shows error *rate*; Elasticsearch shows
+actual error *messages*.
+
+### Long-term log retention
+
+Use Elasticsearch Index Lifecycle Management (ILM) to tier and delete old indices, snapshot to object storage before
+deletion, and retain ERROR/WARN logs longer than INFO/DEBUG.

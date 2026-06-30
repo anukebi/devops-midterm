@@ -36,3 +36,5 @@ build/
 tfplan
 *.hcl
 .env
+dependency-check-report.*
+**/dependency-check-report.*

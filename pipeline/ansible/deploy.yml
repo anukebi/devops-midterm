@@ -1,10 +1,10 @@
 - name: Local Blue-Green Deployment
   hosts: localhost
   vars:
-    project_directory: "{{ lookup('env', 'PROJECT_DIRECTORY') }}"
-    skip_build: "{{ lookup('env', 'SKIP_BUILD') | default('false') | bool }}"
-    deployment_color: "{{ lookup('env', 'DEPLOYMENT_COLOR') }}"
-    deployment_directory: "{{ lookup('env', 'DEPLOYMENT_DIRECTORY') }}"
+    project_directory: "{{ project_directory | default(lookup('env', 'PROJECT_DIRECTORY')) }}"
+    skip_build: "{{ (skip_build | default(lookup('env', 'SKIP_BUILD') | default('false'))) | bool }}"
+    deployment_color: "{{ color | default(lookup('env', 'DEPLOYMENT_COLOR')) }}"
+    deployment_directory: "{{ deployment_directory | default(lookup('env', 'DEPLOYMENT_DIRECTORY')) }}"
 
   tasks:
     - name: Locate packaged JAR
