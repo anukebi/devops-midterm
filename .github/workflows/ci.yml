@@ -58,6 +58,7 @@ jobs:
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: Dockerfile
+          failure-threshold: error
 
       - name: Dependency vulnerability scan
         run: mvn org.owasp:dependency-check-maven:check -Dcheckstyle.skip -DnvdApiKey=${{ secrets.NVD_API_KEY }}
