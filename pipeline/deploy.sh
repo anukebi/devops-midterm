@@ -46,6 +46,7 @@ bash "$PROJECT_DIRECTORY/pipeline/healthcheck.sh"
 if [ $? -eq 0 ]; then
     echo "Health verification succeeded. Switching active version to $DEPLOYMENT_COLOR..."
   ln -sfn "$DEPLOYMENT_DIRECTORY/deployment-$DEPLOYMENT_COLOR" "$DEPLOYMENT_DIRECTORY/deployment-current"
+  bash "$PROJECT_DIRECTORY/scripts/post-deploy-check.sh"
 else
    echo "Health verification failed. Starting rollback procedure..."
 
@@ -53,10 +54,9 @@ else
   [ "$DEPLOYMENT_COLOR" == "blue" ] && DEPLOYMENT_PREVIOUS_COLOR="green"
 
   echo "Restoring previous slot: $DEPLOYMENT_PREVIOUS_COLOR..."
-  export COLOR=$DEPLOYMENT_PREVIOUS_COLOR
-  ansible-playbook "$PROJECT_DIRECTORY/pipeline/ansible/deploy.yml" \
+  SKIP_BUILD=true ansible-playbook "$PROJECT_DIRECTORY/pipeline/ansible/deploy.yml" \
     -i "$PROJECT_DIRECTORY/pipeline/ansible/hosts" \
-    --extra-vars "color=$DEPLOYMENT_COLOR project_directory=$PROJECT_DIRECTORY skip_build=true"
+    --extra-vars "color=$DEPLOYMENT_PREVIOUS_COLOR project_directory=$PROJECT_DIRECTORY skip_build=true"
 
   echo "Checking restored version..."
   bash "$PROJECT_DIRECTORY/pipeline/healthcheck.sh"
