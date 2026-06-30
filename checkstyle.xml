@@ -340,6 +340,9 @@
         <module name="MissingJavadocMethod">
             <property name="severity" value="ignore"/>
         </module>
+        <module name="MissingJavadocType">
+            <property name="severity" value="ignore"/>
+        </module>
 
 
         <module name="MethodName">

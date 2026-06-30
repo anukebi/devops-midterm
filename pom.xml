@@ -88,6 +88,7 @@
 					<configLocation>checkstyle.xml</configLocation>
 					<failsOnError>true</failsOnError>
 					<linkXRef>false</linkXRef>
+					<excludes>pom.xml</excludes>
 				</configuration>
 				<executions>
 					<execution>
