@@ -1,8 +1,10 @@
 package edu.devops.cicd.controller;
 
+import edu.devops.cicd.metrics.AppMetrics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -15,6 +17,9 @@ class HelloControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockitoBean
+    private AppMetrics appMetrics;
 
     @Test
     void helloEndpointReturnsMessage() throws Exception {
@@ -36,5 +41,12 @@ class HelloControllerTest {
         mockMvc.perform(get("/api/health"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void errorEndpointReturnsInternalServerError() throws Exception {
+        mockMvc.perform(get("/api/error"))
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.status").value("error"));
     }
 }
