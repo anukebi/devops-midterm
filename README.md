@@ -23,7 +23,7 @@ The table below maps each final-project requirement from the assignment to its i
 | **Alerting**                 | Done   | Prometheus rules + Grafana provisioned alerts                                               |
 | **Health Checks**            | Done   | `/api/health`, `pipeline/healthcheck.sh`, Docker healthcheck                                |
 | **Environment Automation**   | Done   | `scripts/setup.sh` - single-command setup                                                   |
-| **Security Automation**      | Done   | OWASP, Trivy, Gitleaks, Hadolint, tfsec in CI                                               |
+| **Security Automation**      | Done   | Trivy, Gitleaks, Hadolint, tfsec, Dependency Review in CI                                    |
 | **Reliability Improvements** | Done   | Rollback, SLOs, incident response, alerting                                                 |
 | **Automation Improvements**  | Done   | Multi-stage CI, env validation, post-deploy checks                                          |
 | **Documentation**            | Done   | This README, `docs/SLO.md`, `docs/INCIDENT_RESPONSE.md`                                     |
@@ -100,7 +100,7 @@ flowchart TB
 - Terraform, Ansible (blue-green deployment)
 - Docker, Docker Compose
 - Prometheus, Grafana, Elasticsearch, Logstash, Kibana
-- Security: OWASP Dependency-Check, Trivy, Gitleaks, Hadolint, tfsec
+- Security: Trivy, Gitleaks, Hadolint, tfsec, GitHub Dependency Review
 
 ## Quick Start - Single Command Setup
 
@@ -182,7 +182,7 @@ Workflow: `.github/workflows/ci.yml`
 | Stage                      | Trigger                  | Actions                                                             |
 |----------------------------|--------------------------|---------------------------------------------------------------------|
 | **test**                   | Push/PR to `main`, `dev` | Maven unit tests                                                    |
-| **security**               | After tests pass         | Checkstyle, Gitleaks, tfsec, Hadolint, OWASP Dependency-Check       |
+| **security**               | After tests pass         | Checkstyle, Gitleaks, tfsec, Hadolint, Trivy (dependencies), Dependency Review (PRs) |
 | **build**                  | Push to `main`           | Package JAR, build Docker image, Trivy scan                         |
 | **post-deploy-validation** | Push to `main`           | Validate Docker Compose, environment scripts, and project structure |
 
@@ -209,8 +209,9 @@ Security checks are integrated into the CI pipeline:
 
 | Tool                       | Target                | Purpose                                  |
 |----------------------------|-----------------------|------------------------------------------|
-| **OWASP Dependency-Check** | Maven dependencies    | Dependency vulnerability scanning        |
-| **Trivy**                  | Docker image          | Container image scanning (CRITICAL/HIGH) |
+| **Trivy (filesystem)**     | `pom.xml`, project    | Dependency vulnerability scanning        |
+| **Trivy (container)**      | Docker image          | Container image scanning (CRITICAL/HIGH) |
+| **Dependency Review**      | PR dependency changes | GitHub Advisory DB check on pull requests|
 | **Gitleaks**               | Git repository        | Secrets scanning                         |
 | **Hadolint**               | `Dockerfile`          | Dockerfile best-practice validation      |
 | **tfsec**                  | `pipeline/terraform/` | Infrastructure as Code security          |
@@ -223,17 +224,14 @@ Secrets are kept out of the repository:
 - Deployment configuration is stored in `~/devops/env` (generated from `scripts/env.template`)
 - `.env` files are listed in `.gitignore`
 - **Gitleaks** scans every CI run for accidentally committed credentials
-- Optional GitHub secrets (`NVD_API_KEY`) are used only in CI, never committed
 
 Run security scans locally:
 
 ```bash
 mvn checkstyle:check
-mvn org.owasp:dependency-check-maven:check -Dcheckstyle.skip
+docker run --rm -v "$PWD:/project" aquasec/trivy fs --severity CRITICAL,HIGH /project
 docker build -t midterm-app:local . && docker run --rm aquasec/trivy image midterm-app:local
 ```
-
-Optional: set `NVD_API_KEY` GitHub secret for faster OWASP Dependency-Check NVD database updates.
 
 ## Monitoring, Logging, and Alerting
 

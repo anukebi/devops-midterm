@@ -60,8 +60,28 @@ jobs:
           dockerfile: Dockerfile
           failure-threshold: error
 
-      - name: Dependency vulnerability scan
-        run: mvn org.owasp:dependency-check-maven:check -Dcheckstyle.skip -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+      - name: Cache Trivy vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            trivy-db-${{ runner.os }}-
+
+      - name: Scan dependencies with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 1
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          scanners: vuln
+
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
 
   build:
     runs-on: ubuntu-latest
